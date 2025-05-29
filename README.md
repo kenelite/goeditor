@@ -15,19 +15,52 @@ A lightweight single-document text editor written in Go using the [Fyne](https:/
 
 ## Installation
 
+### 1. Clone the repository
 Make sure you have Go 1.18+ installed and [Fyne](https://developer.fyne.io/started/) set up.
 
 ```bash
 git clone https://github.com/kenelite/goeditor.git
-cd goedit
-go mod tidy
-go run main.go
+cd goeditor
 ```
-Or build the binary:
+
+### 2. Install Fyne dependencies
+
+Fyne requires some native dependencies depending on your OS.
+
+Linux (Debian/Ubuntu example):
 
 ```bash
-go build -o goeditor main.go
-./goeditor
+sudo apt install libgl1-mesa-dev x11proto-core-dev libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev
+```
+
+macOS
+
+Install Xcode Command Line Tools:
+
+```bash
+xcode-select --install
+```
+
+Windows
+
+No special native dependencies needed, but you need to have a working Go environment.
+
+### 3. Download Go modules
+```bash
+go mod tidy
+```
+
+
+## Build & Run
+
+Run directly
+```bash
+go run main.go
+```
+
+Build binary
+```bash
+go build -o goedit main.go
 ```
 
 ##  Usage
