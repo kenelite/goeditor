@@ -24,4 +24,6 @@ go.work.sum
 # env file
 .env
 .idea/
+output/
 goedit*
+.DS_Store
