@@ -1,13 +1,13 @@
 package ui
 
 import (
+	"path/filepath"
+	
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
-
-	"github.com/kenelite/goeditor/backend"
 )
 
 func StartApp() {
@@ -17,51 +17,90 @@ func StartApp() {
 	editor := NewEditor()
 	menu := NewMenu(w, editor)
 
+	// Set up editor callbacks
+	editor.OnFileChanged = func(path string) {
+		updateWindowTitle(w, editor)
+		w.SetMainMenu(NewMenu(w, editor))
+	}
+	
+	editor.OnModified = func(modified bool) {
+		updateWindowTitle(w, editor)
+	}
+
+	// Apply configuration
+	editor.ApplyConfiguration()
+	
+	// Set up window from configuration
+	config := editor.ConfigManager.GetUIConfig()
+	w.Resize(fyne.NewSize(float32(config.WindowWidth), float32(config.WindowHeight)))
+	
 	w.SetMainMenu(menu)
 	w.SetContent(container.NewMax(editor.TextWidget))
-	w.Resize(fyne.NewSize(800, 600))
 
 	setupShortcuts(w, editor)
+	updateWindowTitle(w, editor)
 	w.ShowAndRun()
 }
 
+// updateWindowTitle updates the window title based on current file and state
+func updateWindowTitle(w fyne.Window, editor *Editor) {
+	title := "Goeditor"
+	
+	if editor.GetCurrentFile() != "" {
+		filename := filepath.Base(editor.GetCurrentFile())
+		title = filename + " - Goeditor"
+		
+		if editor.IsModified() {
+			title = "*" + title
+		}
+	} else if editor.IsModified() {
+		title = "*Untitled - Goeditor"
+	}
+	
+	w.SetTitle(title)
+}
+
 func setupShortcuts(w fyne.Window, editor *Editor) {
+	// New file
 	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyN, Modifier: fyne.KeyModifierControl}, func(sc fyne.Shortcut) {
-		editor.TextWidget.SetText("")
-		editor.State.CurrentFile = ""
+		editor.NewFile()
 	})
 
+	// Open file
 	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyO, Modifier: fyne.KeyModifierControl}, func(sc fyne.Shortcut) {
 		openDialog := dialog.NewFileOpen(func(r fyne.URIReadCloser, err error) {
 			if r == nil {
 				return
 			}
 			path := r.URI().Path()
-			content := backend.ReadFile(path)
-			editor.TextWidget.SetText(content)
-			editor.State.CurrentFile = path
-			w.SetMainMenu(NewMenu(w, editor))
+			if err := editor.LoadFile(path); err != nil {
+				dialog.ShowError(err, w)
+			}
 		}, w)
 		openDialog.Show()
 	})
 
+	// Save file
 	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyS, Modifier: fyne.KeyModifierControl}, func(sc fyne.Shortcut) {
-		if editor.State.CurrentFile != "" {
-			backend.SaveFile(editor.State.CurrentFile, editor.TextWidget.Text)
+		if editor.GetCurrentFile() != "" {
+			if err := editor.SaveFile(editor.GetCurrentFile()); err != nil {
+				dialog.ShowError(err, w)
+			}
 		} else {
 			saveDialog := dialog.NewFileSave(func(wr fyne.URIWriteCloser, err error) {
 				if wr == nil {
 					return
 				}
 				path := wr.URI().Path()
-				backend.SaveFile(path, editor.TextWidget.Text)
-				editor.State.CurrentFile = path
-				w.SetMainMenu(NewMenu(w, editor))
+				if err := editor.SaveFile(path); err != nil {
+					dialog.ShowError(err, w)
+				}
 			}, w)
 			saveDialog.Show()
 		}
 	})
 
+	// Save as
 	w.Canvas().AddShortcut(&desktop.CustomShortcut{
 		KeyName:  fyne.KeyS,
 		Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift,
@@ -71,12 +110,13 @@ func setupShortcuts(w fyne.Window, editor *Editor) {
 				return
 			}
 			path := wr.URI().Path()
-			backend.SaveFile(path, editor.TextWidget.Text)
-			editor.State.CurrentFile = path
-			w.SetMainMenu(NewMenu(w, editor))
+			if err := editor.SaveFile(path); err != nil {
+				dialog.ShowError(err, w)
+			}
 		}, w).Show()
 	})
 
+	// Quit
 	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyQ, Modifier: fyne.KeyModifierControl}, func(sc fyne.Shortcut) {
 		w.Close()
 	})
