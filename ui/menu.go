@@ -3,14 +3,13 @@ package ui
 import (
 	fyne "fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
-	"github.com/kenelite/goeditor/backend"
 	"os"
 )
 
 func NewMenu(win fyne.Window, editor *Editor) *fyne.MainMenu {
+	// File menu items
 	newItem := fyne.NewMenuItem("New", func() {
-		editor.TextWidget.SetText("")
-		editor.State.CurrentFile = ""
+		editor.NewFile()
 	})
 
 	openItem := fyne.NewMenuItem("Open", func() {
@@ -18,22 +17,25 @@ func NewMenu(win fyne.Window, editor *Editor) *fyne.MainMenu {
 			if err != nil || r == nil {
 				return
 			}
-			content := backend.ReadFile(r.URI().Path())
-			editor.TextWidget.SetText(content)
-			editor.State.CurrentFile = r.URI().Path()
+			if err := editor.LoadFile(r.URI().Path()); err != nil {
+				dialog.ShowError(err, win)
+			}
 		}, win)
 	})
 
 	saveItem := fyne.NewMenuItem("Save", func() {
-		if editor.State.CurrentFile != "" {
-			backend.SaveFile(editor.State.CurrentFile, editor.TextWidget.Text)
+		if editor.GetCurrentFile() != "" {
+			if err := editor.SaveFile(editor.GetCurrentFile()); err != nil {
+				dialog.ShowError(err, win)
+			}
 		} else {
 			dialog.ShowFileSave(func(wr fyne.URIWriteCloser, err error) {
 				if err != nil || wr == nil {
 					return
 				}
-				backend.SaveFile(wr.URI().Path(), editor.TextWidget.Text)
-				editor.State.CurrentFile = wr.URI().Path()
+				if err := editor.SaveFile(wr.URI().Path()); err != nil {
+					dialog.ShowError(err, win)
+				}
 			}, win)
 		}
 	})
@@ -43,14 +45,19 @@ func NewMenu(win fyne.Window, editor *Editor) *fyne.MainMenu {
 			if err != nil || wr == nil {
 				return
 			}
-			backend.SaveFile(wr.URI().Path(), editor.TextWidget.Text)
-			editor.State.CurrentFile = wr.URI().Path()
+			if err := editor.SaveFile(wr.URI().Path()); err != nil {
+				dialog.ShowError(err, win)
+			}
 		}, win)
 	})
 
 	quitItem := fyne.NewMenuItem("Quit", func() {
+		// TODO: Check for unsaved changes before quitting
 		os.Exit(0)
 	})
+
+	// Enable/disable menu items based on state
+	saveItem.Disabled = !editor.IsModified()
 
 	fileMenu := fyne.NewMenu("File", newItem, openItem, saveItem, saveAsItem, quitItem)
 	return fyne.NewMainMenu(fileMenu)

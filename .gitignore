@@ -27,3 +27,5 @@ go.work.sum
 output/
 goedit*
 .DS_Store
+.kiro/
+.vscode/
