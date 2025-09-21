@@ -15,6 +15,10 @@ func StartApp() {
 	w := a.NewWindow("Goeditor")
 
 	editor := NewEditor()
+	
+	// Initialize dialogs after window is created
+	editor.InitializeDialogs(w)
+	
 	menu := NewMenu(w, editor)
 
 	// Set up editor callbacks
@@ -114,6 +118,36 @@ func setupShortcuts(w fyne.Window, editor *Editor) {
 				dialog.ShowError(err, w)
 			}
 		}, w).Show()
+	})
+
+	// Undo
+	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyZ, Modifier: fyne.KeyModifierControl}, func(sc fyne.Shortcut) {
+		editor.Undo()
+	})
+
+	// Redo
+	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyY, Modifier: fyne.KeyModifierControl}, func(sc fyne.Shortcut) {
+		editor.Redo()
+	})
+
+	// Find
+	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyF, Modifier: fyne.KeyModifierControl}, func(sc fyne.Shortcut) {
+		editor.ShowFindDialog()
+	})
+
+	// Replace
+	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyH, Modifier: fyne.KeyModifierControl}, func(sc fyne.Shortcut) {
+		editor.ShowReplaceDialog()
+	})
+
+	// Find Next
+	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyF3}, func(sc fyne.Shortcut) {
+		editor.FindNext()
+	})
+
+	// Find Previous
+	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyF3, Modifier: fyne.KeyModifierShift}, func(sc fyne.Shortcut) {
+		editor.FindPrevious()
 	})
 
 	// Quit
