@@ -91,14 +91,32 @@ func NewMenu(win fyne.Window, editor *Editor) *fyne.MainMenu {
 	})
 	// Shortcuts are handled by the setupShortcuts function
 
+	// Navigation menu items
+	goToLineItem := fyne.NewMenuItem("Go to Line...", func() {
+		editor.ShowGoToLineDialog()
+	})
+	// Shortcuts are handled by the setupShortcuts function
+
+	// Format menu items
+	indentItem := fyne.NewMenuItem("Indent Lines", func() {
+		editor.IndentSelectedLines()
+	})
+	// Shortcuts are handled by the setupShortcuts function
+
+	unindentItem := fyne.NewMenuItem("Unindent Lines", func() {
+		editor.UnindentSelectedLines()
+	})
+	// Shortcuts are handled by the setupShortcuts function
+
 	// Enable/disable menu items based on state
 	saveItem.Disabled = !editor.IsModified()
 	undoItem.Disabled = !editor.CanUndo()
 	redoItem.Disabled = !editor.CanRedo()
 
-	// Create menus
-	fileMenu := fyne.NewMenu("File", newItem, openItem, saveItem, saveAsItem, fyne.NewMenuItemSeparator(), quitItem)
-	editMenu := fyne.NewMenu("Edit", undoItem, redoItem, fyne.NewMenuItemSeparator(), findItem, replaceItem, fyne.NewMenuItemSeparator(), findNextItem, findPrevItem)
+	// Create menus - simplified to avoid crashes
+	fileMenu := fyne.NewMenu("File", newItem, openItem, saveItem, saveAsItem, quitItem)
+	editMenu := fyne.NewMenu("Edit", undoItem, redoItem, findItem, replaceItem, findNextItem, findPrevItem, goToLineItem)
+	formatMenu := fyne.NewMenu("Format", indentItem, unindentItem)
 	
-	return fyne.NewMainMenu(fileMenu, editMenu)
+	return fyne.NewMainMenu(fileMenu, editMenu, formatMenu)
 }
