@@ -8,38 +8,51 @@ import (
 	"github.com/kenelite/goeditor/ui/syntax"
 	"github.com/kenelite/goeditor/ui/dialogs"
 	"os"
+	"strings"
 )
 
 // Editor represents the main text editor component
 type Editor struct {
-	TextWidget    *widget.Entry
-	State         *backend.EditorState
-	FileManager   *backend.FileManager
-	ConfigManager *backend.ConfigManager
-	History       *backend.History
-	SearchManager *backend.SearchManager
+	TextWidget         *widget.Entry
+	LineNumberWidget   *LineNumberWidget
+	ScrollContainer    *container.Scroll
+	EditorContainer    *fyne.Container
+	State              *backend.EditorState
+	FileManager        *backend.FileManager
+	ConfigManager      *backend.ConfigManager
+	History            *backend.History
+	SearchManager      *backend.SearchManager
+	IndentationManager *IndentationManager
 	
 	// Dialogs
-	FindDialog    *dialogs.FindDialog
-	ReplaceDialog *dialogs.ReplaceDialog
+	FindDialog     *dialogs.FindDialog
+	ReplaceDialog  *dialogs.ReplaceDialog
+	GoToLineDialog *dialogs.GoToLineDialog
 	
 	// Callbacks for state changes
-	OnFileChanged    func(path string)
-	OnModified       func(modified bool)
-	OnCursorChanged  func(line, col int)
+	OnFileChanged      func(path string)
+	OnModified         func(modified bool)
+	OnCursorChanged    func(line, col int)
 	OnSelectionChanged func(hasSelection bool)
 }
 
 // NewEditor creates a new editor instance
 func NewEditor() *Editor {
 	e := &Editor{
-		TextWidget:    widget.NewMultiLineEntry(),
-		State:         backend.NewEditorState(),
-		FileManager:   backend.NewFileManager(),
-		ConfigManager: backend.NewConfigManager(),
-		History:       backend.NewHistory(),
-		SearchManager: backend.NewSearchManager(),
+		TextWidget:         widget.NewMultiLineEntry(),
+		State:              backend.NewEditorState(),
+		FileManager:        backend.NewFileManager(),
+		ConfigManager:      backend.NewConfigManager(),
+		History:            backend.NewHistory(),
+		SearchManager:      backend.NewSearchManager(),
+		IndentationManager: NewIndentationManager(),
 	}
+	
+	// Create line number widget (but don't add to UI yet to avoid crashes)
+	e.LineNumberWidget = NewLineNumberWidget(e)
+	
+	// Create editor container
+	e.createEditorContainer()
 	
 	// Load configuration
 	if err := e.ConfigManager.Load(); err != nil {
@@ -53,15 +66,46 @@ func NewEditor() *Editor {
 	return e
 }
 
+// createEditorContainer creates the container with line numbers and text editor
+func (e *Editor) createEditorContainer() {
+	// For now, create a simple container with just the text widget
+	// Line numbers will be added in a future iteration when Fyne supports it better
+	e.EditorContainer = container.NewMax(e.TextWidget)
+	
+	// Wrap in scroll container
+	e.ScrollContainer = container.NewScroll(e.EditorContainer)
+}
+
+// GetEditorContainer returns the main editor container for embedding in the UI
+func (e *Editor) GetEditorContainer() *container.Scroll {
+	return e.ScrollContainer
+}
+
+// EnableLineNumbers enables line number display (call after UI is initialized)
+func (e *Editor) EnableLineNumbers() {
+	if e.LineNumberWidget != nil && e.EditorContainer != nil {
+		// Recreate container with line numbers
+		e.EditorContainer.Objects = []fyne.CanvasObject{
+			container.NewHBox(
+				e.LineNumberWidget,
+				widget.NewSeparator(),
+				e.TextWidget,
+			),
+		}
+		e.EditorContainer.Refresh()
+	}
+}
+
 // InitializeDialogs initializes the search dialogs (call this after window is available)
 func (e *Editor) InitializeDialogs(window fyne.Window) {
 	e.FindDialog = dialogs.NewFindDialog(e, e.SearchManager, window)
 	e.ReplaceDialog = dialogs.NewReplaceDialog(e, e.SearchManager, window)
+	e.GoToLineDialog = dialogs.NewGoToLineDialog(e, window)
 }
 
 // setupTextWidgetCallbacks sets up callbacks for the text widget
 func (e *Editor) setupTextWidgetCallbacks() {
-	// Track text changes for modified state
+	// Track text changes for modified state and line count
 	e.TextWidget.OnChanged = func(content string) {
 		if !e.State.IsModified {
 			e.State.SetModified(true)
@@ -69,10 +113,55 @@ func (e *Editor) setupTextWidgetCallbacks() {
 				e.OnModified(true)
 			}
 		}
+		
+		// Update line number widget
+		e.updateLineNumbers()
+	}
+	
+	// Handle key events for indentation
+	e.TextWidget.OnSubmitted = func(content string) {
+		// This is called when Enter is pressed
+		e.handleEnterKey()
 	}
 	
 	// TODO: Add cursor position tracking when Fyne supports it
 	// TODO: Add selection tracking when Fyne supports it
+}
+
+// updateLineNumbers updates the line number widget based on current content
+func (e *Editor) updateLineNumbers() {
+	if e.LineNumberWidget != nil {
+		e.LineNumberWidget.UpdateFromEditor()
+	}
+}
+
+// handleEnterKey handles Enter key press for auto-indentation
+func (e *Editor) handleEnterKey() {
+	if !e.IndentationManager.GetAutoIndent() {
+		return
+	}
+	
+	content := e.GetContent()
+	// For now, we'll implement basic auto-indentation
+	// In a full implementation, we would need cursor position tracking
+	lines := strings.Split(content, "\n")
+	if len(lines) > 1 {
+		lastLine := lines[len(lines)-2] // Previous line before the new one
+		indentation := e.IndentationManager.GetLineIndentation(lastLine)
+		
+		// Add extra indentation for certain patterns
+		trimmedLine := strings.TrimSpace(lastLine)
+		if strings.HasSuffix(trimmedLine, "{") || strings.HasSuffix(trimmedLine, ":") {
+			indentation += e.IndentationManager.GetIndentString()
+		}
+		
+		// Update the current line with proper indentation
+		if indentation != "" {
+			lines[len(lines)-1] = indentation + strings.TrimLeft(lines[len(lines)-1], " \t")
+			newContent := strings.Join(lines, "\n")
+			e.SetContent(newContent)
+		}
+	}
 }
 
 // LoadFile loads a file into the editor
@@ -439,7 +528,123 @@ func (e *Editor) GetSearchManager() *backend.SearchManager {
 	return e.SearchManager
 }
 
-// HandleKeyEvent handles keyboard events for search functionality
+// Go to Line Methods
+
+// ShowGoToLineDialog shows the "Go to Line" dialog
+func (e *Editor) ShowGoToLineDialog() {
+	if e.GoToLineDialog != nil {
+		e.GoToLineDialog.Show()
+	}
+}
+
+// HideGoToLineDialog hides the "Go to Line" dialog
+func (e *Editor) HideGoToLineDialog() {
+	if e.GoToLineDialog != nil {
+		e.GoToLineDialog.Hide()
+	}
+}
+
+// GoToLine navigates to the specified line number
+func (e *Editor) GoToLine(lineNumber int) bool {
+	content := e.GetContent()
+	lines := strings.Split(content, "\n")
+	
+	if lineNumber < 1 || lineNumber > len(lines) {
+		return false
+	}
+	
+	// Update state
+	e.State.SetCursorPosition(lineNumber, 1)
+	
+	// Scroll line number widget to the line
+	if e.LineNumberWidget != nil {
+		e.LineNumberWidget.ScrollToLine(lineNumber)
+	}
+	
+	// Notify callback
+	if e.OnCursorChanged != nil {
+		e.OnCursorChanged(lineNumber, 1)
+	}
+	
+	return true
+}
+
+// Indentation Methods
+
+// HandleTabKey handles Tab key press for indentation
+func (e *Editor) HandleTabKey() {
+	content := e.GetContent()
+	// For simplified implementation, add indentation at the end
+	// In a real implementation, we would need cursor position
+	newContent := content + e.IndentationManager.GetIndentString()
+	e.SetContent(newContent)
+}
+
+// HandleShiftTabKey handles Shift+Tab key press for unindentation
+func (e *Editor) HandleShiftTabKey() {
+	content := e.GetContent()
+	lines := strings.Split(content, "\n")
+	
+	if len(lines) > 0 {
+		// Remove indentation from the last line (simplified)
+		lastLineIndex := len(lines) - 1
+		newLine, _ := e.IndentationManager.removeIndentation(lines[lastLineIndex])
+		lines[lastLineIndex] = newLine
+		
+		newContent := strings.Join(lines, "\n")
+		e.SetContent(newContent)
+	}
+}
+
+// IndentSelectedLines indents the currently selected lines
+func (e *Editor) IndentSelectedLines() {
+	content := e.GetContent()
+	lines := strings.Split(content, "\n")
+	
+	// For simplified implementation, indent all lines
+	// In a real implementation, we would only indent selected lines
+	newContent := e.IndentationManager.IndentLines(content, 0, len(lines)-1)
+	e.SetContent(newContent)
+}
+
+// UnindentSelectedLines removes indentation from the currently selected lines
+func (e *Editor) UnindentSelectedLines() {
+	content := e.GetContent()
+	lines := strings.Split(content, "\n")
+	
+	// For simplified implementation, unindent all lines
+	// In a real implementation, we would only unindent selected lines
+	newContent := e.IndentationManager.UnindentLines(content, 0, len(lines)-1)
+	e.SetContent(newContent)
+}
+
+// GetIndentationManager returns the indentation manager
+func (e *Editor) GetIndentationManager() *IndentationManager {
+	return e.IndentationManager
+}
+
+// SetTabSize sets the tab size for indentation
+func (e *Editor) SetTabSize(size int) {
+	if e.IndentationManager != nil {
+		e.IndentationManager.SetTabSize(size)
+	}
+}
+
+// SetUseSpaces sets whether to use spaces instead of tabs
+func (e *Editor) SetUseSpaces(useSpaces bool) {
+	if e.IndentationManager != nil {
+		e.IndentationManager.SetUseSpaces(useSpaces)
+	}
+}
+
+// SetAutoIndent sets whether to automatically indent new lines
+func (e *Editor) SetAutoIndent(autoIndent bool) {
+	if e.IndentationManager != nil {
+		e.IndentationManager.SetAutoIndent(autoIndent)
+	}
+}
+
+// HandleKeyEvent handles keyboard events for search functionality and editor features
 func (e *Editor) HandleKeyEvent(event *fyne.KeyEvent) bool {
 	// Let dialogs handle their events first
 	if e.FindDialog != nil && e.FindDialog.HandleKeyEvent(event) {
@@ -448,10 +653,19 @@ func (e *Editor) HandleKeyEvent(event *fyne.KeyEvent) bool {
 	if e.ReplaceDialog != nil && e.ReplaceDialog.HandleKeyEvent(event) {
 		return true
 	}
+	if e.GoToLineDialog != nil && e.GoToLineDialog.HandleKeyEvent(event) {
+		return true
+	}
 	
-	// Handle F3 for find next
-	if event.Name == fyne.KeyF3 {
+	// Handle editor-specific key events
+	switch event.Name {
+	case fyne.KeyF3:
 		e.FindNext()
+		return true
+	case fyne.KeyTab:
+		// Note: Fyne's KeyEvent doesn't have a Modifier field in the current version
+		// This would need to be handled differently in a real implementation
+		e.HandleTabKey()
 		return true
 	}
 	

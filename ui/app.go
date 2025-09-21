@@ -11,7 +11,7 @@ import (
 )
 
 func StartApp() {
-	a := app.New()
+	a := app.NewWithID("com.kenelite.goeditor")
 	w := a.NewWindow("Goeditor")
 
 	editor := NewEditor()
@@ -39,10 +39,14 @@ func StartApp() {
 	w.Resize(fyne.NewSize(float32(config.WindowWidth), float32(config.WindowHeight)))
 	
 	w.SetMainMenu(menu)
-	w.SetContent(container.NewMax(editor.TextWidget))
+	w.SetContent(container.NewMax(editor.GetEditorContainer()))
 
 	setupShortcuts(w, editor)
 	updateWindowTitle(w, editor)
+	
+	// Enable line numbers after UI is set up (commented out for now to prevent crashes)
+	// editor.EnableLineNumbers()
+	
 	w.ShowAndRun()
 }
 
@@ -148,6 +152,21 @@ func setupShortcuts(w fyne.Window, editor *Editor) {
 	// Find Previous
 	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyF3, Modifier: fyne.KeyModifierShift}, func(sc fyne.Shortcut) {
 		editor.FindPrevious()
+	})
+
+	// Go to Line
+	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyG, Modifier: fyne.KeyModifierControl}, func(sc fyne.Shortcut) {
+		editor.ShowGoToLineDialog()
+	})
+
+	// Indent Lines
+	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyTab, Modifier: fyne.KeyModifierControl}, func(sc fyne.Shortcut) {
+		editor.IndentSelectedLines()
+	})
+
+	// Unindent Lines
+	w.Canvas().AddShortcut(&desktop.CustomShortcut{KeyName: fyne.KeyTab, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}, func(sc fyne.Shortcut) {
+		editor.UnindentSelectedLines()
 	})
 
 	// Quit
