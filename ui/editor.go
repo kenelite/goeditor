@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/kenelite/goeditor/backend"
 	"github.com/kenelite/goeditor/ui/syntax"
+	"github.com/kenelite/goeditor/ui/dialogs"
 	"os"
 )
 
@@ -16,6 +17,11 @@ type Editor struct {
 	FileManager   *backend.FileManager
 	ConfigManager *backend.ConfigManager
 	History       *backend.History
+	SearchManager *backend.SearchManager
+	
+	// Dialogs
+	FindDialog    *dialogs.FindDialog
+	ReplaceDialog *dialogs.ReplaceDialog
 	
 	// Callbacks for state changes
 	OnFileChanged    func(path string)
@@ -32,6 +38,7 @@ func NewEditor() *Editor {
 		FileManager:   backend.NewFileManager(),
 		ConfigManager: backend.NewConfigManager(),
 		History:       backend.NewHistory(),
+		SearchManager: backend.NewSearchManager(),
 	}
 	
 	// Load configuration
@@ -44,6 +51,12 @@ func NewEditor() *Editor {
 	e.setupTextWidgetCallbacks()
 	
 	return e
+}
+
+// InitializeDialogs initializes the search dialogs (call this after window is available)
+func (e *Editor) InitializeDialogs(window fyne.Window) {
+	e.FindDialog = dialogs.NewFindDialog(e, e.SearchManager, window)
+	e.ReplaceDialog = dialogs.NewReplaceDialog(e, e.SearchManager, window)
 }
 
 // setupTextWidgetCallbacks sets up callbacks for the text widget
@@ -344,6 +357,105 @@ func (e *Editor) applyReverseOperation(op backend.Operation) {
 // ClearHistory clears the undo/redo history
 func (e *Editor) ClearHistory() {
 	e.History.Clear()
+}
+
+// Search and Replace Methods
+
+// ShowFindDialog shows the find dialog
+func (e *Editor) ShowFindDialog() {
+	if e.FindDialog != nil {
+		e.FindDialog.Show()
+	}
+}
+
+// ShowReplaceDialog shows the find and replace dialog
+func (e *Editor) ShowReplaceDialog() {
+	if e.ReplaceDialog != nil {
+		e.ReplaceDialog.Show()
+	}
+}
+
+// HideFindDialog hides the find dialog
+func (e *Editor) HideFindDialog() {
+	if e.FindDialog != nil {
+		e.FindDialog.Hide()
+	}
+}
+
+// HideReplaceDialog hides the replace dialog
+func (e *Editor) HideReplaceDialog() {
+	if e.ReplaceDialog != nil {
+		e.ReplaceDialog.Hide()
+	}
+}
+
+// FindNext finds the next occurrence of the current search pattern
+func (e *Editor) FindNext() bool {
+	if e.FindDialog != nil && e.FindDialog.IsVisible() {
+		return e.FindDialog.FindNext()
+	}
+	if e.ReplaceDialog != nil && e.ReplaceDialog.IsVisible() {
+		return e.ReplaceDialog.FindNext()
+	}
+	return false
+}
+
+// FindPrevious finds the previous occurrence of the current search pattern
+func (e *Editor) FindPrevious() bool {
+	if e.FindDialog != nil && e.FindDialog.IsVisible() {
+		return e.FindDialog.FindPrevious()
+	}
+	if e.ReplaceDialog != nil && e.ReplaceDialog.IsVisible() {
+		return e.ReplaceDialog.FindPrevious()
+	}
+	return false
+}
+
+// Find searches for a pattern in the editor content
+func (e *Editor) Find(pattern string, options backend.SearchOptions) []backend.Match {
+	e.SearchManager.SetOptions(options)
+	return e.SearchManager.Find(e.GetContent(), pattern)
+}
+
+// Replace performs text replacement in the editor
+func (e *Editor) Replace(pattern, replacement string, options backend.ReplaceOptions) int {
+	content := e.GetContent()
+	newContent, count := e.SearchManager.Replace(content, pattern, replacement, options)
+	
+	if count > 0 {
+		e.SetContent(newContent)
+		// Mark as modified
+		e.State.SetModified(true)
+		if e.OnModified != nil {
+			e.OnModified(true)
+		}
+	}
+	
+	return count
+}
+
+// GetSearchManager returns the search manager
+func (e *Editor) GetSearchManager() *backend.SearchManager {
+	return e.SearchManager
+}
+
+// HandleKeyEvent handles keyboard events for search functionality
+func (e *Editor) HandleKeyEvent(event *fyne.KeyEvent) bool {
+	// Let dialogs handle their events first
+	if e.FindDialog != nil && e.FindDialog.HandleKeyEvent(event) {
+		return true
+	}
+	if e.ReplaceDialog != nil && e.ReplaceDialog.HandleKeyEvent(event) {
+		return true
+	}
+	
+	// Handle F3 for find next
+	if event.Name == fyne.KeyF3 {
+		e.FindNext()
+		return true
+	}
+	
+	return false
 }
 
 // EditorView creates a syntax-highlighted view of a file (legacy function)

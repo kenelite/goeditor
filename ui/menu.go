@@ -11,6 +11,7 @@ func NewMenu(win fyne.Window, editor *Editor) *fyne.MainMenu {
 	newItem := fyne.NewMenuItem("New", func() {
 		editor.NewFile()
 	})
+	// Shortcuts are handled by the setupShortcuts function
 
 	openItem := fyne.NewMenuItem("Open", func() {
 		dialog.ShowFileOpen(func(r fyne.URIReadCloser, err error) {
@@ -22,6 +23,7 @@ func NewMenu(win fyne.Window, editor *Editor) *fyne.MainMenu {
 			}
 		}, win)
 	})
+	// Shortcuts are handled by the setupShortcuts function
 
 	saveItem := fyne.NewMenuItem("Save", func() {
 		if editor.GetCurrentFile() != "" {
@@ -39,6 +41,7 @@ func NewMenu(win fyne.Window, editor *Editor) *fyne.MainMenu {
 			}, win)
 		}
 	})
+	// Shortcuts are handled by the setupShortcuts function
 
 	saveAsItem := fyne.NewMenuItem("Save As", func() {
 		dialog.ShowFileSave(func(wr fyne.URIWriteCloser, err error) {
@@ -56,9 +59,46 @@ func NewMenu(win fyne.Window, editor *Editor) *fyne.MainMenu {
 		os.Exit(0)
 	})
 
+	// Edit menu items
+	undoItem := fyne.NewMenuItem("Undo", func() {
+		editor.Undo()
+	})
+	// Shortcuts are handled by the setupShortcuts function
+
+	redoItem := fyne.NewMenuItem("Redo", func() {
+		editor.Redo()
+	})
+	// Shortcuts are handled by the setupShortcuts function
+
+	// Search menu items
+	findItem := fyne.NewMenuItem("Find", func() {
+		editor.ShowFindDialog()
+	})
+	// Shortcuts are handled by the setupShortcuts function
+
+	replaceItem := fyne.NewMenuItem("Replace", func() {
+		editor.ShowReplaceDialog()
+	})
+	// Shortcuts are handled by the setupShortcuts function
+
+	findNextItem := fyne.NewMenuItem("Find Next", func() {
+		editor.FindNext()
+	})
+	// Shortcuts are handled by the setupShortcuts function
+
+	findPrevItem := fyne.NewMenuItem("Find Previous", func() {
+		editor.FindPrevious()
+	})
+	// Shortcuts are handled by the setupShortcuts function
+
 	// Enable/disable menu items based on state
 	saveItem.Disabled = !editor.IsModified()
+	undoItem.Disabled = !editor.CanUndo()
+	redoItem.Disabled = !editor.CanRedo()
 
-	fileMenu := fyne.NewMenu("File", newItem, openItem, saveItem, saveAsItem, quitItem)
-	return fyne.NewMainMenu(fileMenu)
+	// Create menus
+	fileMenu := fyne.NewMenu("File", newItem, openItem, saveItem, saveAsItem, fyne.NewMenuItemSeparator(), quitItem)
+	editMenu := fyne.NewMenu("Edit", undoItem, redoItem, fyne.NewMenuItemSeparator(), findItem, replaceItem, fyne.NewMenuItemSeparator(), findNextItem, findPrevItem)
+	
+	return fyne.NewMainMenu(fileMenu, editMenu)
 }
