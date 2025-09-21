@@ -5,7 +5,6 @@ import (
 	
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 )
@@ -39,7 +38,7 @@ func StartApp() {
 	w.Resize(fyne.NewSize(float32(config.WindowWidth), float32(config.WindowHeight)))
 	
 	w.SetMainMenu(menu)
-	w.SetContent(container.NewMax(editor.GetEditorContainer()))
+	w.SetContent(editor.GetCompleteLayout())
 
 	setupShortcuts(w, editor)
 	updateWindowTitle(w, editor)

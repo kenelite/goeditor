@@ -17,6 +17,7 @@ type Editor struct {
 	LineNumberWidget   *LineNumberWidget
 	ScrollContainer    *container.Scroll
 	EditorContainer    *fyne.Container
+	StatusBar          *StatusBar
 	State              *backend.EditorState
 	FileManager        *backend.FileManager
 	ConfigManager      *backend.ConfigManager
@@ -51,6 +52,9 @@ func NewEditor() *Editor {
 	// Create line number widget (but don't add to UI yet to avoid crashes)
 	e.LineNumberWidget = NewLineNumberWidget(e)
 	
+	// Create status bar
+	e.StatusBar = NewStatusBar(e)
+	
 	// Create editor container
 	e.createEditorContainer()
 	
@@ -79,6 +83,20 @@ func (e *Editor) createEditorContainer() {
 // GetEditorContainer returns the main editor container for embedding in the UI
 func (e *Editor) GetEditorContainer() *container.Scroll {
 	return e.ScrollContainer
+}
+
+// GetCompleteLayout returns the complete editor layout including status bar
+func (e *Editor) GetCompleteLayout() *fyne.Container {
+	return container.NewBorder(
+		nil, e.StatusBar.GetContainer(), // top, bottom
+		nil, nil, // left, right
+		e.ScrollContainer, // center
+	)
+}
+
+// GetStatusBar returns the status bar component
+func (e *Editor) GetStatusBar() *StatusBar {
+	return e.StatusBar
 }
 
 // EnableLineNumbers enables line number display (call after UI is initialized)
@@ -116,12 +134,26 @@ func (e *Editor) setupTextWidgetCallbacks() {
 		
 		// Update line number widget
 		e.updateLineNumbers()
+		
+		// Simulate cursor position update
+		e.SimulateCursorMovement()
+		
+		// Update status bar
+		if e.StatusBar != nil {
+			e.StatusBar.Refresh()
+		}
 	}
 	
 	// Handle key events for indentation
 	e.TextWidget.OnSubmitted = func(content string) {
 		// This is called when Enter is pressed
 		e.handleEnterKey()
+		
+		// Update cursor position in status bar (simulate cursor movement)
+		if e.OnCursorChanged != nil {
+			lines := strings.Split(content, "\n")
+			e.OnCursorChanged(len(lines), 1) // Move to start of new line
+		}
 	}
 	
 	// TODO: Add cursor position tracking when Fyne supports it
@@ -182,12 +214,23 @@ func (e *Editor) LoadFile(path string) error {
 	e.State.SetCurrentFile(path, fileInfo.Size, fileType.Name)
 	e.State.SetModified(false)
 	
+	// Reset cursor position
+	e.State.SetCursorPosition(1, 1)
+	
 	// Notify callbacks
 	if e.OnFileChanged != nil {
 		e.OnFileChanged(path)
 	}
 	if e.OnModified != nil {
 		e.OnModified(false)
+	}
+	if e.OnCursorChanged != nil {
+		e.OnCursorChanged(1, 1)
+	}
+	
+	// Update status bar
+	if e.StatusBar != nil {
+		e.StatusBar.Refresh()
 	}
 	
 	return nil
@@ -213,6 +256,14 @@ func (e *Editor) SaveFile(path string) error {
 	if e.OnModified != nil {
 		e.OnModified(false)
 	}
+	if e.OnFileChanged != nil {
+		e.OnFileChanged(path)
+	}
+	
+	// Update status bar
+	if e.StatusBar != nil {
+		e.StatusBar.Refresh()
+	}
 	
 	return nil
 }
@@ -231,6 +282,14 @@ func (e *Editor) NewFile() {
 	}
 	if e.OnModified != nil {
 		e.OnModified(false)
+	}
+	if e.OnCursorChanged != nil {
+		e.OnCursorChanged(1, 1)
+	}
+	
+	// Update status bar
+	if e.StatusBar != nil {
+		e.StatusBar.Refresh()
 	}
 }
 
@@ -670,6 +729,34 @@ func (e *Editor) HandleKeyEvent(event *fyne.KeyEvent) bool {
 	}
 	
 	return false
+}
+
+// SimulateCursorMovement simulates cursor movement for demonstration purposes
+// In a real implementation, this would be handled by Fyne's text widget events
+func (e *Editor) SimulateCursorMovement() {
+	content := e.GetContent()
+	lines := strings.Split(content, "\n")
+	
+	// Simulate cursor at end of content
+	if len(lines) > 0 {
+		lastLine := lines[len(lines)-1]
+		e.State.SetCursorPosition(len(lines), len(lastLine)+1)
+		
+		if e.OnCursorChanged != nil {
+			e.OnCursorChanged(len(lines), len(lastLine)+1)
+		}
+	}
+}
+
+// UpdateStatusBarFromContent updates the status bar based on current content
+// This is a helper method for demonstration purposes
+func (e *Editor) UpdateStatusBarFromContent() {
+	if e.StatusBar != nil {
+		e.StatusBar.Refresh()
+		
+		// Simulate cursor position update
+		e.SimulateCursorMovement()
+	}
 }
 
 // EditorView creates a syntax-highlighted view of a file (legacy function)
